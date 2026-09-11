@@ -30,6 +30,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from .core import engines as engines_mod
+from .core import decompile as decompile_mod
 from .core.generator import ConversionError, convert_project
 from .core.reader import ReaderError, read_project
 
@@ -188,6 +189,13 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
         if not raw:
             return self._send(400, {"error": "path is required"})
         path = Path(raw).expanduser()
+        if path.is_file() and decompile_mod.is_mod_jar(path):
+            engine = decompile_mod.jar_engine(path)
+            if engine:
+                return self._send(200, {"detected": engine,
+                                        "evidence": "loader metadata inside the jar",
+                                        "jar": True})
+            return self._send(200, {"detected": None, "jar": True})
         if not path.is_dir():
             return self._send(400, {"error": "Project folder not found."})
         engine, evidence = engines_mod.detect_source_engine(path)
@@ -205,8 +213,21 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
 
         project_path = Path(project).expanduser()
         out_path = Path(out).expanduser() if out else project_path.parent / f"{project_path.name}-{target}"
+        jar_banner: str | None = None
 
         try:
+            if project_path.is_file() and decompile_mod.is_mod_jar(project_path):
+                try:
+                    workdir = project_path.parent / f"{project_path.stem}-modporter-work"
+                    project_path = decompile_mod.prepare_jar_project(project_path, workdir)
+                    jar_banner = (
+                        "Compiled jar detected: sources were reconstructed by decompilation "
+                        "(Vineflower). Comments are lost and pre-1.17 Forge jars keep SRG "
+                        "names - expect manual porting work."
+                    )
+                except decompile_mod.DecompileError as exc:
+                    return self._send(400, {"error": str(exc)})
+            out_path = Path(out).expanduser() if out else project_path.parent / f"{project_path.name}-{target}"
             model = read_project(project_path, engine=data.get("source_engine") or None)
             try:
                 # Guard BEFORE any filesystem writes: refuse to convert a
@@ -215,7 +236,14 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 resolved_proj = project_path.resolve()
                 if resolved_out == resolved_proj or resolved_proj in resolved_out.parents:
                     return self._send(400, {"error": "Output folder must be outside the project folder."})
-                report = convert_project(model, target, out_path, clean=True, verbose=True)
+                report = convert_project(
+                    model, target, out_path, clean=True, verbose=True,
+                    jar_note=(
+                        "sources were reconstructed by decompilation (Vineflower); "
+                        "comments are lost and pre-1.17 Forge jars keep SRG names "
+                        "(func_...) - expect manual porting work"
+                    ) if jar_banner else None,
+                )
             except ConversionError as exc:
                 return self._send(400, {"error": str(exc)})
             except engines_mod.EngineError as exc:
@@ -245,6 +273,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             "report": report_text,
             "files": files,
             "warnings": todo_count,
+            "jar_banner": jar_banner,
         }
         self._send(200, payload)
 

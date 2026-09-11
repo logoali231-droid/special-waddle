@@ -235,8 +235,9 @@ def rewrite_fabric_registry_to_deferred(
     # Remove original Registry.register statements (brace/paren balanced lines).
     _remove_registry_register_statements(editor, entries)
 
-    # Insert DeferredRegister fields before the first method or at class start.
-    insert_at = _class_body_start(editor)
+    # Insert DeferredRegister fields after the leading constants (MOD_ID,
+    # LOGGER, ...) so the initializers never forward-reference them.
+    insert_at = _insertion_after_constants(editor)
     editor.lines[insert_at:insert_at] = replacement_lines
 
     # imports
@@ -308,6 +309,44 @@ def _class_body_start(editor: JavaSourceEditor) -> int:
                 if "{" in editor.get_line(j):
                     return j + 1
     return 0
+
+
+_CONSTANT_DECL_RE = re.compile(
+    r"^\s*(?:public\s+|protected\s+|private\s+)?(?:static\s+)?(?:final\s+)?"
+    r"[\w.<>\[\],\s?]+?\s+([A-Z][A-Z0-9_]*)\s*="
+)
+
+
+def _insertion_after_constants(editor: JavaSourceEditor) -> int:
+    """Line index after the leading constant declarations of the class.
+
+    Java forbids forward references in field initializers, so generated
+    fields that mention ``MOD_ID``/``LOGGER`` must be inserted *after*
+    those constants, never before them.
+    """
+    i = _class_body_start(editor)
+    n = len(editor.lines)
+    while i < n:
+        stripped = editor.lines[i].strip()
+        if not stripped or stripped.startswith(("//", "/*", "*", "*/")):
+            i += 1
+            continue
+        seg = strip_comments_and_strings(editor.lines[i])
+        if not _CONSTANT_DECL_RE.match(seg):
+            break
+        # multi-line declaration: advance past the balanced ';' line
+        depth = 0
+        j = i
+        while j < n:
+            s2 = strip_comments_and_strings(editor.lines[j])
+            depth += s2.count("(") - s2.count(")")
+            if depth <= 0 and ";" in s2:
+                i = j + 1
+                break
+            j += 1
+        else:
+            i += 1
+    return i
 
 
 # --------------------------------------------------------------------------
@@ -399,7 +438,8 @@ def rewrite_deferred_to_fabric_registry(
 
     if replacement:
         replacement.append("    );")
-        insert_at = _class_body_start(editor)
+        # after constants for the same forward-reference reason
+        insert_at = _insertion_after_constants(editor)
         editor.lines[insert_at:insert_at] = replacement
 
     collector.notes.append(

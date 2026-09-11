@@ -77,6 +77,14 @@
   .status.warn { color: var(--warn); }
   .status.err { color: var(--err); }
   .hint { color: var(--muted); font-size: 12px; }
+  .banner.warn {
+    color: var(--warn);
+    border: 1px solid var(--warn);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin: 0 0 10px;
+    font-size: 13px;
+  }
   .badge {
     display: inline-block; background: var(--panel); border: 1px solid var(--line);
     border-radius: 999px; padding: 2px 10px; font-size: 12px; color: var(--muted); margin-right: 6px;
@@ -273,8 +281,14 @@ async function detect(path) {
       state.sourceEngine = data.detected;
       $("sourceEngineBadge").textContent = data.detected + "  (" + (data.evidence || "") + ")";
       $("sourceEngineRow").style.display = "block";
-      setStatus("detectStatus", "", "ok");
+      if (data.jar) {
+        setStatus("detectStatus", "Compiled mod jar detected \u2014 it will be extracted and decompiled (Vineflower) before converting.", "warn");
+      } else {
+        setStatus("detectStatus", "", "ok");
+      }
       if (state.target === data.detected) state.target = null;
+    } else if (data.jar) {
+      setStatus("detectStatus", "This is a jar but no loader metadata was found inside.", "err");
     } else {
       setStatus("detectStatus", "No mod metadata found \u2014 the folder may not be a mod project.", "warn");
     }
@@ -311,6 +325,12 @@ async function convert() {
     });
     setStatus("convertStatus", "Conversion complete.", "ok");
     showResults(data);
+    if (data.jar_banner) {
+      const banner = document.createElement("div");
+      banner.className = "banner warn";
+      banner.textContent = data.jar_banner;
+      $("results").prepend(banner);
+    }
   } catch (err) {
     setStatus("convertStatus", err.message, "err");
   }

@@ -32,6 +32,9 @@ def _toml_lite(text: str) -> dict:
     """
     root: dict = {}
     current: list[str] = []
+    in_multiline = False
+    quote3 = ""
+    buf: list[str] = []
 
     def container(path: list[str]) -> dict:
         node = root
@@ -68,6 +71,14 @@ def _toml_lite(text: str) -> dict:
                 return raw
 
     for lineno, raw_line in enumerate(text.splitlines(), start=1):
+        if in_multiline:
+            if raw_line.strip().endswith(quote3):
+                buf.append(raw_line[: raw_line.rindex(quote3)])
+                container(current)[key] = "\n".join(buf).lstrip("\n")
+                in_multiline = False
+            else:
+                buf.append(raw_line)
+            continue
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
@@ -92,6 +103,16 @@ def _toml_lite(text: str) -> dict:
             elif "=" in line:
                 key, _, raw = line.partition("=")
                 key = key.strip().strip("\"'")
+                m3 = re.match(r"^(['\"]){3}(.*)$", raw)
+                if m3:
+                    quote3 = m3.group(1) * 3
+                    rest = m3.group(2)
+                    if rest.endswith(quote3) and len(rest) >= 3:
+                        container(current)[key] = rest[: -3]
+                    else:
+                        buf = [rest]
+                        in_multiline = True
+                    continue
                 if "#" in raw and not raw.lstrip().startswith(("\"", "'")):
                     raw = raw.split("#", 1)[0]
                 container(current)[key] = parse_value(raw)
@@ -203,6 +224,45 @@ def _read_entry_class_refs(root: Path, meta: ModMetadata) -> None:
     return None
 
 
+# Candidate locations of loader manifests, most specific first. Covers both
+# the source-tree layout (src/main/resources/...) and the built-jar layout
+# (... at the jar root), so extracted mod jars read exactly like IDE projects.
+_METADATA_CANDIDATES: dict[str, tuple[str, ...]] = {
+    "fabric.mod.json": (
+        "src/main/resources/fabric.mod.json",
+        "fabric.mod.json",
+    ),
+    "mods.toml": (
+        "src/main/resources/META-INF/mods.toml",
+        "META-INF/mods.toml",
+    ),
+    "neoforge.mods.toml": (
+        "src/main/resources/META-INF/neoforge.mods.toml",
+        "META-INF/neoforge.mods.toml",
+    ),
+}
+
+
+def _find_metadata(root: Path, filename: str) -> Path | None:
+    for rel in _METADATA_CANDIDATES.get(filename, (filename,)):
+        candidate = root / rel
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _resource_root_for(root: Path, manifest: Path | None) -> Path:
+    """The resources root implied by where the manifest was found."""
+    if manifest is None:
+        return root / "src/main/resources"
+    rel = manifest.relative_to(root)
+    if "META-INF" in rel.parts:
+        return root / Path(*rel.parts[: rel.parts.index("META-INF")])
+    if rel.parent != Path("."):
+        return root / rel.parent
+    return root
+
+
 def read_project(root: Path, engine: str | None = None) -> ProjectModel:
     """Read the project at *root* into a :class:`ProjectModel`."""
     root = Path(root).resolve()
@@ -222,9 +282,11 @@ def read_project(root: Path, engine: str | None = None) -> ProjectModel:
     spec = get_engine(engine)
 
     meta = ModMetadata()
+    manifest_path: Path | None = None
     if engine == ENGINE_FABRIC:
-        fmp = root / "src/main/resources/fabric.mod.json"
-        if fmp.is_file():
+        fmp = _find_metadata(root, "fabric.mod.json")
+        manifest_path = fmp
+        if fmp is not None:
             try:
                 data = json.loads(fmp.read_text(encoding="utf-8"))
             except json.JSONDecodeError as exc:
@@ -232,10 +294,18 @@ def read_project(root: Path, engine: str | None = None) -> ProjectModel:
             meta = _metadata_from_fabric(data)
     else:
         toml_name = "neoforge.mods.toml" if engine == ENGINE_NEOFORGE else "mods.toml"
-        toml_path = root / "src/main/resources/META-INF" / toml_name
-        if toml_path.is_file():
+        toml_path = _find_metadata(root, toml_name)
+        manifest_path = toml_path
+        if toml_path is not None:
             data = _toml_lite(toml_path.read_text(encoding="utf-8"))
             meta = _metadata_from_toml(data, engine)
+
+    if manifest_path is None or not meta.mod_id:
+        raise ReaderError(
+            f"No readable {engine} manifest ({spec.metadata_file}) found at {root}. "
+            "The mod identity would be lost; refusing to convert. "
+            "If this is a compiled jar, pass the .jar file directly."
+        )
 
     model = ProjectModel(root=str(root), engine=engine, spec=spec, metadata=meta)
 
@@ -249,6 +319,7 @@ def read_project(root: Path, engine: str | None = None) -> ProjectModel:
     model.loader_version = props.get("loader_version", props.get("neo_version", props.get("forge_version", "*")))
 
     src_main = root / "src" / "main"
+    res_root = _resource_root_for(root, manifest_path)
     java_root = src_main / "java"
     if java_root.is_dir():
         for path in sorted(java_root.rglob("*.java")):
@@ -257,17 +328,16 @@ def read_project(root: Path, engine: str | None = None) -> ProjectModel:
             package, class_name = _java_coord(path, java_root)
             model.sources.append(SourceFile(path=rel, package=package, class_name=class_name, text=text))
 
-    res_root = src_main / "resources"
     mixin_configs: list[str] = []
     if res_root.is_dir():
         for path in sorted(res_root.rglob("*")):
             if not path.is_file():
                 continue
-            rel = path.relative_to(root).as_posix()
+            rel = path.relative_to(res_root).as_posix()
             if path.suffix.lower() in ASSET_SUFFIXES and "META-INF" not in path.parts:
                 model.assets.append(AssetFile(path=rel, text=path.read_text(encoding="utf-8", errors="replace")))
             if path.suffix == ".json" and "mixins" in path.stem.lower():
-                mixin_configs.append(path.relative_to(res_root).as_posix())
+                mixin_configs.append(rel)
     model.mixin_configs = mixin_configs
     return model
 

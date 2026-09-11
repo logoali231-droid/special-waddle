@@ -121,18 +121,43 @@ python -m modporter convert out/rubymod-neoforge fabric -o out/rubymod-roundtrip
 ## CLI reference
 
 ```
-python -m modporter convert <project-root> <fabric|forge|neoforge>
+python -m modporter convert <project-root-or-jar> <fabric|forge|neoforge>
                            [-o OUTPUT_DIR] [--source-engine ENGINE]
-                           [--no-clean] [-v]
+                           [--no-clean] [-v] [--keep-decompiled]
 
 python -m modporter detect  <project-root>      # auto-detect the engine
 python -m modporter engines                     # list supported engines
+python -m modporter studio                      # launch the web UI
 ```
 
 `SOURCE_ENGINE` may be omitted: ModPorter detects it from
 `fabric.mod.json` / `META-INF/mods.toml` / `META-INF/neoforge.mods.toml`
 (then falls back to scanning `build.gradle`). The output directory defaults
 to `<project>-<source>-to-<target>` next to the project.
+
+## Converting compiled mod jars
+
+You do not need the mod's source code. Pass a **`.jar` file** (CLI or Studio
+path field) and ModPorter will:
+
+1. extract the jar's metadata and assets,
+2. reconstruct `.java` sources with [Vineflower](https://vineflower.org/)
+   (downloaded once from Maven Central, cached in your local app-data/cache
+   directory; requires a JDK 17+ on PATH),
+3. assemble a source-tree project and run the normal conversion.
+
+```bash
+python -m modporter convert Downloads/somemod-1.16.5.jar neoforge -o out/somemod-neo
+```
+
+Expectations, stated plainly: decompiled code loses comments and javadoc;
+pre-1.17 Forge jars keep SRG member names (`func_...`/`m_...`); Minecraft
+APIs are **not** migrated between versions (a 1.16.5 mod converted this way
+still needs a real 1.21 port). Every jar conversion says this in the report
+and in the Studio UI banner - the conversion is a starting point, not magic.
+
+If Java is missing, the CLI prints the actionable error above instead of
+depending on it silently.
 
 ## What gets converted
 

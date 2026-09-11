@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .core import engines as _engines_mod
 from . import __version__
+from .core import decompile
 from .core.generator import convert_project
 from .core.reader import ReaderError, read_project
 
@@ -29,6 +30,8 @@ def build_parser() -> argparse.ArgumentParser:
                       help="Override source engine detection.")
     conv.add_argument("--no-clean", action="store_true", help="Do not delete the output directory before converting.")
     conv.add_argument("-v", "--verbose", action="store_true", help="List every copied asset in the report.")
+    conv.add_argument("--keep-decompiled", action="store_true",
+                      help="Keep the extracted/decompiled intermediate project when converting a .jar.")
 
     det = sub.add_parser("detect", help="Detect the engine of a mod project.")
     det.add_argument("project", help="Root directory of the mod project.")
@@ -56,10 +59,25 @@ def main(argv: list[str] | None = None) -> int:
         serve(port=args.port, open_browser=not args.no_browser)
         return 0
 
-    root = Path(args.project).resolve()
+    root = Path(args.project).expanduser().resolve()
+    jar_note = None
     if not root.is_dir():
-        print(f"error: project directory not found: {root}", file=sys.stderr)
-        return 2
+        if decompile.is_mod_jar(root):
+            try:
+                workdir = root.parent / f"{root.stem}-modporter-work"
+                root = decompile.prepare_jar_project(
+                    root, workdir, keep_intermediates=args.keep_decompiled
+                )
+                jar_note = ("input was a compiled jar; sources were reconstructed by "
+                            "decompilation (comments are lost; pre-1.17 Forge jars keep "
+                            "SRG names like func_...) - expect manual porting work")
+                print(f"[jar] prepared source project: {root}")
+            except decompile.DecompileError as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                return 2
+        else:
+            print(f"error: project directory not found: {root}", file=sys.stderr)
+            return 2
 
     if args.command == "detect":
         engine, evidence = _engines_mod.detect_source_engine(root)
@@ -82,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
 
     out = Path(args.output) if args.output else root.parent / f"{root.name}-{model.engine}-to-{args.target}"
     try:
-        convert_project(model, args.target.lower(), out, clean=not args.no_clean, verbose=args.verbose)
+        convert_project(model, args.target.lower(), out, clean=not args.no_clean, verbose=args.verbose, jar_note=jar_note)
     except Exception as exc:  # noqa: BLE001 - CLI boundary
         print(f"error: conversion failed: {exc}", file=sys.stderr)
         if args.verbose:
@@ -92,6 +110,8 @@ def main(argv: list[str] | None = None) -> int:
     report = out / "CONVERSION_REPORT.md"
     print(f"conversion complete -> {out}")
     print(f"report: {report}")
+    if jar_note:
+        print(f"note: {jar_note}")
     return 0
 
 

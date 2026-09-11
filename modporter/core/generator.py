@@ -52,8 +52,13 @@ def convert_project(
     *,
     clean: bool = True,
     verbose: bool = False,
+    jar_note: str | None = None,
 ) -> Path:
-    """Run the full conversion and write the result into *out_dir*."""
+    """Run the full conversion and write the result into *out_dir*.
+
+    ``jar_note`` documents that the input sources were reconstructed by
+    decompilation; it is surfaced in the report's Smart Fallback section.
+    """
     target_engine = (target_engine or "").strip().lower()
     if target_engine == model.engine:
         raise ConversionError(
@@ -159,6 +164,9 @@ def convert_project(
 
     # --- 6. smart fallback warnings ---------------------------------------------
     report.add("## Smart Fallback warnings (TODO: [CONVERT])")
+    if jar_note:
+        report.add("")
+        report.add("> **Compiled-jar input:** " + jar_note)
     if result.fallback_messages:
         for msg in sorted(set(result.fallback_messages)):
             report.add(f"- TODO: [CONVERT] {msg}")

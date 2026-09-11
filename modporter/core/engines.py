@@ -167,10 +167,15 @@ def detect_source_engine(root: Path) -> tuple[str, str] | tuple[None, None]:
     Returns ``(engine_name, evidence_path)`` or ``(None, None)``.
     """
     root = Path(root)
+    # Probe both the source-tree layout (src/main/resources/...) and the
+    # built-jar layout (META-INF/... / fabric.mod.json at the root).
     candidates: list[tuple[str, str]] = [
         (ENGINE_FABRIC, "src/main/resources/fabric.mod.json"),
         (ENGINE_NEOFORGE, "src/main/resources/META-INF/neoforge.mods.toml"),
         (ENGINE_FORGE, "src/main/resources/META-INF/mods.toml"),
+        (ENGINE_FABRIC, "fabric.mod.json"),
+        (ENGINE_NEOFORGE, "META-INF/neoforge.mods.toml"),
+        (ENGINE_FORGE, "META-INF/mods.toml"),
     ]
     for engine, rel in candidates:
         if (root / rel).is_file():

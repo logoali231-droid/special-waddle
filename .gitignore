@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Build/test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Tool output
+modporter-out/

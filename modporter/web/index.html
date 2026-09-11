@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ModPorter Studio</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #161b22;
+    --panel2: #1c2330;
+    --line: #2a3140;
+    --text: #e6edf3;
+    --muted: #8b96a5;
+    --accent: #4f8cff;
+    --accent2: #7c5cff;
+    --ok: #3fb950;
+    --warn: #d29922;
+    --err: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+    display: flex; min-height: 100vh;
+  }
+  h1 { font-size: 18px; margin: 0; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; }
+  button { font: inherit; cursor: pointer; }
+
+  .app { display: flex; width: 100%; min-height: 100vh; }
+  aside {
+    width: 390px; min-width: 330px; background: var(--panel);
+    border-right: 1px solid var(--line); padding: 20px; display: flex; flex-direction: column; gap: 16px;
+  }
+  main { flex: 1; padding: 20px 24px; overflow: auto; }
+
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .logo {
+    width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--accent), var(--accent2)); font-size: 18px;
+  }
+  .brand small { color: var(--muted); display: block; }
+
+  .card { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .field label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 5px; }
+  .row { display: flex; gap: 8px; }
+  input[type=text] {
+    flex: 1; background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--text); padding: 9px 11px; font: inherit; min-width: 0;
+  }
+  input[type=text]:focus { outline: none; border-color: var(--accent); }
+  .btn {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 9px 14px; transition: border-color .15s, background .15s;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); border: none; font-weight: 600; }
+  .btn.primary:hover { filter: brightness(1.12); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn.wide { width: 100%; padding: 12px; font-size: 15px; }
+
+  .engines { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .engine {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 8px; text-align: center; cursor: pointer; transition: border-color .15s, transform .1s;
+  }
+  .engine:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .engine.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .engine .ico { font-size: 22px; }
+  .engine .name { font-weight: 600; margin-top: 4px; }
+  .engine .meta { color: var(--muted); font-size: 11px; }
+  .engine.disabled { opacity: .45; cursor: not-allowed; }
+
+  .status { min-height: 20px; font-size: 13px; white-space: pre-wrap; }
+  .status.ok { color: var(--ok); }
+  .status.warn { color: var(--warn); }
+  .status.err { color: var(--err); }
+  .hint { color: var(--muted); font-size: 12px; }
+  .badge {
+    display: inline-block; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 999px; padding: 2px 10px; font-size: 12px; color: var(--muted); margin-right: 6px;
+  }
+  .badge.ok { color: var(--ok); border-color: var(--ok); }
+  .badge.warn { color: var(--warn); border-color: var(--warn); }
+
+  .split { display: flex; gap: 14px; height: calc(100vh - 40px); }
+  .filelist {
+    width: 340px; min-width: 260px; background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 12px; overflow: auto; padding: 8px;
+  }
+  .filelist button {
+    display: flex; justify-content: space-between; gap: 8px; width: 100%; text-align: left; background: none;
+    border: 0; color: var(--text); padding: 7px 10px; border-radius: 7px; font: inherit;
+  }
+  .filelist button:hover { background: var(--panel); }
+  .filelist button.active { background: var(--panel); outline: 1px solid var(--line); }
+  .filelist .size { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .viewer {
+    flex: 1; background: var(--panel2); border: 1px solid var(--line); border-radius: 12px;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .viewer header {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+    border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; flex-wrap: wrap;
+  }
+  .viewer pre {
+    margin: 0; padding: 14px; overflow: auto; flex: 1;
+    font: 12.5px/1.55 Consolas, "Cascadia Code", monospace; white-space: pre; tab-size: 4;
+  }
+  .viewer .warnline { color: var(--warn); font-weight: 600; }
+  .viewer .modline { color: var(--accent); }
+
+  dialog {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 14px; padding: 18px; width: min(660px, 92vw);
+  }
+  dialog::backdrop { background: rgba(0,0,0,.55); }
+  .browser-head { display: flex; gap: 8px; margin-bottom: 10px; }
+  .browser-head input { flex: 1; }
+  .listing { height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .listing button {
+    display: flex; gap: 8px; width: 100%; text-align: left; background: none; border: 0;
+    color: var(--text); padding: 8px 10px; font: inherit; border-radius: 0;
+  }
+  .listing button:hover { background: var(--panel2); }
+  .listing .dir { color: var(--accent); }
+  .browser-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; gap: 8px; }
+
+  .empty { color: var(--muted); text-align: center; margin-top: 22vh; }
+  .empty .big { font-size: 44px; }
+  code { background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand">
+      <div class="logo">&#128295;</div>
+      <div>
+        <h1>ModPorter Studio</h1>
+        <small>Fabric &harr; Forge &harr; NeoForge converter</small>
+      </div>
+    </div>
+
+    <div class="card field">
+      <label>Mod project folder</label>
+      <div class="row">
+        <input type="text" id="projectPath" placeholder="C:\path\to\my-fabric-mod" spellcheck="false">
+        <button class="btn" id="btnBrowse">Browse&hellip;</button>
+      </div>
+      <div class="status" id="detectStatus"></div>
+      <div class="hint">The source engine is detected automatically from the mod's metadata.</div>
+      <div id="sourceEngineRow" style="display:none; margin-top:8px;">
+        <label style="color:var(--muted); font-size:12px;">Detected source engine</label>
+        <div><span class="badge ok" id="sourceEngineBadge"></span></div>
+      </div>
+    </div>
+
+    <div class="card field">
+      <label>Convert to</label>
+      <div class="engines" id="engineList"></div>
+      <div class="status" id="engineStatus"></div>
+    </div>
+
+    <div class="card field">
+      <label>Output folder <span style="opacity:.6">(optional &mdash; defaults next to the project)</span></label>
+      <div class="row">
+        <input type="text" id="outputPath" placeholder="(default: next to the project)" spellcheck="false">
+        <button class="btn" id="btnBrowseOut">Browse&hellip;</button>
+      </div>
+      <div class="hint" id="outputHint"></div>
+    </div>
+
+    <button class="btn primary wide" id="btnConvert" disabled>&#9889; Convert</button>
+    <div class="status" id="convertStatus"></div>
+  </aside>
+
+  <main id="results">
+    <div class="empty" id="emptyState">
+      <div class="big">&#127919;</div>
+      <p>Pick a mod project, choose a target engine and hit <b>Convert</b>.<br>
+      Results and warnings appear here &mdash; no terminal required.</p>
+    </div>
+  </main>
+</div>
+
+<dialog id="browserModal">
+  <h2 style="color:var(--text); text-transform:none; letter-spacing:0; font-size:15px;">Choose a folder</h2>
+  <div class="browser-head">
+    <input type="text" id="browserPath" spellcheck="false">
+    <button class="btn" id="btnGo">Go</button>
+    <button class="btn" id="btnUp">&uarr; Up</button>
+  </div>
+  <div class="listing" id="listing"></div>
+  <div class="browser-foot">
+    <span class="hint" id="browserCwd"></span>
+    <div style="display:flex; gap:8px;">
+      <button class="btn" id="btnCancelBrowse">Cancel</button>
+      <button class="btn primary" id="btnPick">Select this folder</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+const state = {
+  engines: [],
+  sourceEngine: null,
+  target: null,
+  outputRoot: null,
+};
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  let data = {};
+  try { data = await res.json(); } catch (_) { /* empty body */ }
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+function setStatus(id, text, cls) {
+  const el = $(id);
+  el.textContent = text || "";
+  el.className = "status " + (cls || "");
+}
+
+/* ---------- engines ---------- */
+function renderEngines() {
+  const wrap = $("engineList");
+  wrap.innerHTML = "";
+  for (const e of state.engines) {
+    const div = document.createElement("div");
+    const disabled = state.sourceEngine === e.id;
+    div.className = "engine" + (state.target === e.id ? " selected" : "") + (disabled ? " disabled" : "");
+    div.title = disabled ? "This is the detected source engine" : "Convert to " + e.label;
+    div.innerHTML = `<div class="ico">${e.id === "fabric" ? "&#129517;" : e.id === "forge" ? "&#9876;&#65039;" : "&#9881;&#65039;"}</div>
+      <div class="name">${esc(e.label)}</div>
+      <div class="meta">${esc(e.metadata)}</div>`;
+    div.onclick = () => {
+      if (disabled) {
+        setStatus("engineStatus", `Already ${e.label} — pick a different target.`, "warn");
+        return;
+      }
+      state.target = e.id;
+      setStatus("engineStatus", "");
+      renderEngines();
+      refreshConvert();
+    };
+    wrap.appendChild(div);
+  }
+}
+
+/* ---------- detection ---------- */
+async function detect(path) {
+  state.sourceEngine = null;
+  $("sourceEngineRow").style.display = "none";
+  setStatus("detectStatus", "");
+  renderEngines();
+  refreshConvert();
+  if (!path) return;
+  setStatus("detectStatus", "Detecting\u2026");
+  try {
+    const data = await api("/api/detect", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({path}),
+    });
+    if (data.detected) {
+      state.sourceEngine = data.detected;
+      $("sourceEngineBadge").textContent = data.detected + "  (" + (data.evidence || "") + ")";
+      $("sourceEngineRow").style.display = "block";
+      setStatus("detectStatus", "", "ok");
+      if (state.target === data.detected) state.target = null;
+    } else {
+      setStatus("detectStatus", "No mod metadata found \u2014 the folder may not be a mod project.", "warn");
+    }
+  } catch (err) {
+    setStatus("detectStatus", err.message, "err");
+  }
+  renderEngines();
+  refreshConvert();
+}
+
+function refreshConvert() {
+  $("btnConvert").disabled = !(state.sourceEngine && state.target);
+  if (state.sourceEngine && state.target) {
+    const src = state.engines.find(e => e.id === state.sourceEngine);
+    const dst = state.engines.find(e => e.id === state.target);
+    $("outputHint").textContent = "Will convert " + (src ? src.label : state.sourceEngine) + " \u2192 " + (dst ? dst.label : state.target);
+  } else {
+    $("outputHint").textContent = "";
+  }
+}
+
+/* ---------- convert ---------- */
+async function convert() {
+  const btn = $("btnConvert");
+  btn.disabled = true;
+  const project = $("projectPath").value.trim();
+  const output = $("outputPath").value.trim();
+  setStatus("convertStatus", "Converting\u2026 this can take a moment.", "warn");
+  try {
+    const data = await api("/api/convert", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({project, target: state.target, output}),
+    });
+    setStatus("convertStatus", "Conversion complete.", "ok");
+    showResults(data);
+  } catch (err) {
+    setStatus("convertStatus", err.message, "err");
+  }
+  refreshConvert();
+}
+
+/* ---------- results explorer ---------- */
+function showResults(data) {
+  state.outputRoot = data.output;
+  const main = $("results");
+  main.innerHTML = `
+    <div class="split">
+      <div class="filelist" id="filelist"></div>
+      <div class="viewer">
+        <header>
+          <b style="color:var(--text)">${esc(data.output)}</b>
+          <span class="badge warn">${data.warnings} TODO warnings</span>
+          <span class="badge ok">Done</span>
+          <span style="flex:1"></span>
+          <button class="btn" id="btnViewReport">View report</button>
+          <button class="btn" id="btnOpenFolder">Open folder</button>
+        </header>
+        <pre id="fileView">Select a file to preview it.</pre>
+      </div>
+    </div>`;
+  const list = $("filelist");
+  for (const f of data.files) {
+    const b = document.createElement("button");
+    b.innerHTML = `<span>${esc(f.path)}</span><span class="size">${(f.size / 1024).toFixed(1)} KB</span>`;
+    b.onclick = () => openFile(f.path, b);
+    list.appendChild(b);
+  }
+  $("btnOpenFolder").onclick = async () => {
+    try { await api("/api/open?path=."); } catch (err) { alert(err.message); }
+  };
+  $("btnViewReport").onclick = () => openFile("CONVERSION_REPORT.md", null);
+  const entry = data.files.find(f => f.path.endsWith(".java") && !f.path.includes("/client/"));
+  if (entry) openFile(entry.path);
+}
+
+async function openFile(path, btn) {
+  try {
+    const data = await api("/api/file?path=" + encodeURIComponent(path));
+    const view = $("fileView");
+    if (!view) return;
+    if (data.truncated) {
+      view.textContent = "(file too large to preview)";
+      return;
+    }
+    view.innerHTML = data.text.split("\n").map((line) => {
+      const safe = esc(line);
+      if (line.includes("TODO: [CONVERT]") || line.includes("NOTE: [MODPORTER]")) {
+        return `<span class="warnline">${safe}</span>`;
+      }
+      if (line.trim().startsWith("// ModPorter:")) {
+        return `<span class="modline">${safe}</span>`;
+      }
+      return safe;
+    }).join("\n");
+    document.querySelectorAll("#filelist button").forEach(b => b.classList.remove("active"));
+    if (btn) btn.classList.add("active");
+    view.scrollTop = 0;
+  } catch (err) {
+    const view = $("fileView");
+    if (view) view.textContent = "Error: " + err.message;
+  }
+}
+
+/* ---------- folder browser ---------- */
+let browseTarget = "project";
+
+function openBrowser(target) {
+  browseTarget = target;
+  const seed = target === "output"
+    ? ($("outputPath").value.trim() || $("projectPath").value.trim())
+    : ($("projectPath").value.trim() || $("outputPath").value.trim());
+  $("browserModal").showModal();
+  browseTo(seed);
+}
+
+async function browseTo(path) {
+  try {
+    const data = await api("/api/browse", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({path: path || null}),
+    });
+    renderListing(data);
+  } catch (err) {
+    $("listing").innerHTML = `<div style="padding:12px;color:var(--err)">${esc(err.message)}</div>`;
+  }
+}
+
+function renderListing(data) {
+  $("browserCwd").textContent = data.cwd;
+  $("browserPath").value = data.cwd;
+  const list = $("listing");
+  list.innerHTML = "";
+  const add = (label, html, go) => {
+    const b = document.createElement("button");
+    b.innerHTML = html;
+    b.onclick = go;
+    list.appendChild(b);
+  };
+  if (data.parent) {
+    add("parent", `<span class="dir">&#8593; Parent folder</span>`, () => browseTo(data.parent));
+  }
+  for (const d of data.dirs) {
+    add(d, `<span class="dir">&#128193; ${esc(d)}</span>`, () => browseTo(data.cwd + data.sep + d));
+  }
+  for (const f of data.files) {
+    add(f, `<span>&#128196; ${esc(f)}</span>`, () => {});
+  }
+  if (!data.dirs.length && !data.files.length) {
+    list.innerHTML = `<div style="padding:12px;color:var(--muted)">Empty folder.</div>`;
+  }
+}
+
+function pickFolder() {
+  const p = $("browserPath").value.trim();
+  if (!p) return;
+  if (browseTarget === "output") {
+    $("outputPath").value = p;
+  } else {
+    $("projectPath").value = p;
+    $("browserModal").close();
+    detect(p);
+    return;
+  }
+  $("browserModal").close();
+}
+
+/* ---------- wire up ---------- */
+async function init() {
+  const eng = await api("/api/engines", {method: "POST"});
+  state.engines = eng.engines;
+  renderEngines();
+
+  $("btnBrowse").onclick = () => openBrowser("project");
+  $("btnBrowseOut").onclick = () => openBrowser("output");
+  $("btnConvert").onclick = convert;
+  $("projectPath").addEventListener("change", () => detect($("projectPath").value.trim()));
+  $("btnGo").onclick = () => browseTo($("browserPath").value.trim());
+  $("btnUp").onclick = () => {
+    const p = $("browserPath").value.trim().replace(/[\\/]+$/, "");
+    const i = Math.max(p.lastIndexOf("\\"), p.lastIndexOf("/"));
+    if (i > 3) browseTo(p.slice(0, i));
+    else browseTo(p.slice(0, 3));  // drive root, e.g. C:\
+  };
+  $("btnPick").onclick = pickFolder;
+  $("btnCancelBrowse").onclick = () => $("browserModal").close();
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modporter"
+version = "1.0.0"
+description = "Automated Fabric <-> Forge <-> NeoForge mod project converter"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Remyy"}]
+
+[project.scripts]
+modporter = "modporter.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["modporter*"]
+
+[tool.setuptools.package-data]
+modporter = ["web/*.html"]

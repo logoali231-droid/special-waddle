@@ -1,0 +1,34 @@
+# Conversion by ModPorter - metadata migrated from fabric (fabric.mod.json).
+modLoader = "javafml"
+loaderVersion = "[21,)"
+license = "MIT"
+issueTrackerURL = ""
+[[mods]]
+modId = "rubymod"
+version = "1.2.3"
+displayName = "Ruby Mod"
+authors = "Alice Example, Bob Builder"
+description = "A sample mod used to exercise ModPorter conversions."
+license = "MIT"
+logoFile = "assets/rubymod/icon.png"
+
+[[dependencies]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies]]
+modId = "minecraft"
+type = "required"
+versionRange = "1.21.1"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies]]
+modId = "cloth-config"
+type = "required"
+versionRange = ">=11.0.0"
+ordering = "AFTER"
+side = "BOTH"

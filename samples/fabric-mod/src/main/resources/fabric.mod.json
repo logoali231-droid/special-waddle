@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "rubymod",
+  "version": "1.2.3",
+  "name": "Ruby Mod",
+  "description": "A sample mod used to exercise ModPorter conversions.",
+  "authors": ["Alice Example", "Bob Builder"],
+  "contact": {
+    "homepage": "https://example.com/rubymod",
+    "sources": "https://github.com/example/rubymod"
+  },
+  "license": "MIT",
+  "icon": "assets/rubymod/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.example.rubymod.RubyMod"
+    ],
+    "client": [
+      "com.example.rubymod.client.RubyModClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
+    "minecraft": "~1.21",
+    "java": ">=21",
+    "cloth-config": ">=11.0.0"
+  },
+  "suggests": {
+    "modmenu": "*"
+  }
+}
